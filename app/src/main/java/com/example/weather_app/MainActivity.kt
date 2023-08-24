@@ -16,9 +16,12 @@ import android.net.Uri
 import android.provider.Settings
 import android.widget.Toast
 import androidx.core.app.ActivityCompat
+import com.example.weather_app.databinding.ActivityMainBinding
 import com.google.android.gms.location.LocationServices
 
 class MainActivity : AppCompatActivity() {
+
+    private lateinit var binding : ActivityMainBinding
 
     val locationPermissionRequest = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -41,7 +44,8 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
+        binding = ActivityMainBinding.inflate(layoutInflater)
+        setContentView(binding.root)
 
         locationPermissionRequest.launch(arrayOf(Manifest.permission.ACCESS_COARSE_LOCATION))
     }
@@ -122,11 +126,24 @@ class MainActivity : AppCompatActivity() {
                                 Category.TMP -> temperature = forecast.forecastValue.toDouble()
                                 else -> {}
                             }
-
                         }
-
-                        Log.e("Forecast", forecastDateTimeMap.toString())
                     }
+
+                    val list = forecastDateTimeMap.values.toMutableList()
+                    list.sortWith { f1 , f2 ->
+                        val f1DateTime = "${f1.forecastDate}${f1.forecastTime}"
+                        val f2Datetime = "${f2.forecastDate}${f2.forecastTime}"
+
+                        return@sortWith f1DateTime.compareTo(f2Datetime)
+                    }
+
+                    val currentForecast = list.first()
+
+                    binding.temperatureTextView.text = getString(R.string.temperature_text, currentForecast.temperature)
+                    binding.skyTextView.text = currentForecast.weather
+                    binding.precipitationTextView.text = getString(R.string.precipitation_text, currentForecast.precipitation)
+
+                    Log.e("Forecast", forecastDateTimeMap.toString())
                 }
 
                 override fun onFailure(call: Call<WeatherEntity>, t: Throwable) {
