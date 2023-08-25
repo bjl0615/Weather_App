@@ -12,16 +12,20 @@ import retrofit2.converter.gson.GsonConverterFactory
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.location.Geocoder
 import android.net.Uri
 import android.provider.Settings
 import android.widget.Toast
 import androidx.core.app.ActivityCompat
 import com.example.weather_app.databinding.ActivityMainBinding
+import com.example.weather_app.databinding.ItemForecastBinding
 import com.google.android.gms.location.LocationServices
+import java.lang.Exception
+import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
 
-    private lateinit var binding : ActivityMainBinding
+    private lateinit var binding: ActivityMainBinding
 
     val locationPermissionRequest = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -32,9 +36,9 @@ class MainActivity : AppCompatActivity() {
             }
 
             else -> {
-                Toast.makeText(this , "위치 권한이 필요합니다." , Toast.LENGTH_SHORT)
+                Toast.makeText(this, "위치 권한이 필요합니다.", Toast.LENGTH_SHORT)
                 val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                    data = Uri.fromParts("package" , packageName , null)
+                    data = Uri.fromParts("package", packageName, null)
                 }
                 startActivity(intent)
                 finish()
@@ -81,6 +85,23 @@ class MainActivity : AppCompatActivity() {
             return
         }
         fusedLocationClient.lastLocation.addOnSuccessListener {
+
+            Thread {
+                try {
+                    val addressList = Geocoder(this, Locale.KOREA).getFromLocation(
+                        it.latitude,
+                        it.longitude,
+                        1
+                    )
+                    runOnUiThread {
+                        binding.locationTextView.text = addressList?.get(0)?.thoroughfare.orEmpty()
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }.start()
+
+
             val retrofit = Retrofit.Builder()
                 .baseUrl("http://apis.data.go.kr/")
                 .addConverterFactory(GsonConverterFactory.create())
@@ -98,7 +119,10 @@ class MainActivity : AppCompatActivity() {
                 nx = point.nx,
                 ny = point.ny
             ).enqueue(object : Callback<WeatherEntity> {
-                override fun onResponse(call: Call<WeatherEntity>, response: Response<WeatherEntity>) {
+                override fun onResponse(
+                    call: Call<WeatherEntity>,
+                    response: Response<WeatherEntity>
+                ) {
 
                     val forecastDateTimeMap = mutableMapOf<String, Forecast>()
                     val forecastList =
@@ -130,7 +154,7 @@ class MainActivity : AppCompatActivity() {
                     }
 
                     val list = forecastDateTimeMap.values.toMutableList()
-                    list.sortWith { f1 , f2 ->
+                    list.sortWith { f1, f2 ->
                         val f1DateTime = "${f1.forecastDate}${f1.forecastTime}"
                         val f2Datetime = "${f2.forecastDate}${f2.forecastTime}"
 
@@ -139,9 +163,30 @@ class MainActivity : AppCompatActivity() {
 
                     val currentForecast = list.first()
 
-                    binding.temperatureTextView.text = getString(R.string.temperature_text, currentForecast.temperature)
+                    binding.temperatureTextView.text =
+                        getString(R.string.temperature_text, currentForecast.temperature)
                     binding.skyTextView.text = currentForecast.weather
-                    binding.precipitationTextView.text = getString(R.string.precipitation_text, currentForecast.precipitation)
+                    binding.precipitationTextView.text =
+                        getString(R.string.precipitation_text, currentForecast.precipitation)
+
+                    binding.childForecastLayout.apply {
+                        list.forEachIndexed { index, forecast ->
+                            if (index == 0) {
+                                return@forEachIndexed
+                            }
+
+                            val itemView = ItemForecastBinding.inflate(layoutInflater)
+
+                            itemView.timeTextView.text = forecast.forecastTime
+                            itemView.weatherTextView.text = forecast.weather
+                            itemView.temperatureTextView.text =
+                                getString(R.string.temperature_text, forecast.temperature)
+
+                            addView(itemView.root)
+                        }
+
+
+                    }
 
                     Log.e("Forecast", forecastDateTimeMap.toString())
                 }
