@@ -28,6 +28,8 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        
+        <activity android:name=".SettingActivity" />
 
         <receiver
             android:name=".WeatherAppWidgetProvider"
@@ -40,6 +42,8 @@
                 android:resource="@xml/appwidget_info" />
         </receiver>
 
+        <service android:name=".UpdateWeatherService"
+            android:foregroundServiceType="location" />
     </application>
 
 </manifest>

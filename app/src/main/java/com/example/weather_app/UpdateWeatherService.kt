@@ -1,6 +1,9 @@
 package com.example.weather_app
 
 import android.Manifest
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.appwidget.AppWidgetManager
@@ -10,6 +13,8 @@ import android.content.pm.PackageManager
 import android.os.IBinder
 import android.widget.RemoteViews
 import androidx.core.app.ActivityCompat
+import androidx.core.app.NotificationCompat
+import androidx.core.content.getSystemService
 import com.google.android.gms.location.LocationServices
 
 class UpdateWeatherService : Service() {
@@ -20,7 +25,8 @@ class UpdateWeatherService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
 
         // notification channel
-        // foregroundService
+        createChannel()
+        startForeground(1, createNotification())
 
         val appWidgetManger: AppWidgetManager = AppWidgetManager.getInstance(this)
 
@@ -30,7 +36,20 @@ class UpdateWeatherService : Service() {
             ) != PackageManager.PERMISSION_GRANTED
         ) {
 
-            // todo 위젯을 권한없음 상태로 표시하고, 클릭했을 때 권한 팝업을 얻을 수 있도록 조정
+            val pendingIntent : PendingIntent = Intent(this , SettingActivity::class.java).let {
+                PendingIntent.getActivity(this , 2, it, PendingIntent.FLAG_IMMUTABLE)
+            }
+
+            RemoteViews(packageName, R.layout.widget_weather).apply {
+                setTextViewText(R.id.temperatureTextView, "권한 없음")
+                setTextViewText(R.id.weatherTextView, "")
+                setOnClickPendingIntent(R.id.temperatureTextView, pendingIntent)
+            }.also {remoteViews ->
+                val appWidgetName = ComponentName(this , WeatherAppWidgetProvider::class.java)
+                appWidgetManger.updateAppWidget(appWidgetName , remoteViews)
+            }
+
+            stopSelf()
 
             return super.onStartCommand(intent, flags, startId)
         }
@@ -72,11 +91,66 @@ class UpdateWeatherService : Service() {
                     stopSelf()
                 },
                 failureCallback = {
-                    // todo 위젝을 에러 상태로 표시
+                    val pendingServiceIntent: PendingIntent =
+                        Intent(this, UpdateWeatherService::class.java)
+                            .let { intent ->
+                                PendingIntent.getService(
+                                    this,
+                                    1,
+                                    intent,
+                                    PendingIntent.FLAG_IMMUTABLE
+                                )
+                            }
+                    RemoteViews(packageName, R.layout.widget_weather).apply {
+                        setTextViewText(
+                            R.id.temperatureTextView,
+                            "에러"
+                        )
+                        setTextViewText(
+                            R.id.weatherTextView,
+                            ""
+                        )
+                        setOnClickPendingIntent(R.id.temperatureTextView, pendingServiceIntent)
+                    }.also { remoteViews ->
+                        val appWidgetName =
+                            ComponentName(this, WeatherAppWidgetProvider::class.java)
+                        appWidgetManger.updateAppWidget(appWidgetName, remoteViews)
+                    }
                     stopSelf()
                 }
             )
         }
         return super.onStartCommand(intent, flags, startId)
+    }
+
+    private fun createChannel() {
+        val channel = NotificationChannel(
+            NOTIFICATION_CHANNEL,
+            R.string.app_name.toString(),
+            NotificationManager.IMPORTANCE_LOW
+        )
+
+        channel.description = "위젯을 업데이트 하는 체널"
+
+        val manger = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
+        manger.createNotificationChannel(channel)
+    }
+
+    private fun createNotification() : Notification {
+        return NotificationCompat.Builder(this , NOTIFICATION_CHANNEL)
+            .setSmallIcon(R.drawable.weather_widget_background)
+            .setContentTitle(R.string.app_name.toString())
+            .setContentTitle(R.string.app_update.toString())
+            .build()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+
+        stopForeground(STOP_FOREGROUND_REMOVE)
+    }
+
+    companion object {
+        const val NOTIFICATION_CHANNEL = "widget_refresh_channel"
     }
 }
